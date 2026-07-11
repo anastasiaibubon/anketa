@@ -4,6 +4,8 @@ import LandingPage from '@/pages/landing';
 import CreatedPage from '@/pages/created';
 import FillPage from '@/pages/fill';
 import ResultsPage from '@/pages/results';
+import LoginPage from '@/pages/login';
+import DashboardPage from '@/pages/dashboard';
 
 function Router() {
   return (
@@ -12,6 +14,8 @@ function Router() {
       <Route path="/created/:roomId/:key" component={CreatedPage} />
       <Route path="/fill/:roomId" component={FillPage} />
       <Route path="/results/:roomId/:key" component={ResultsPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/dashboard" component={DashboardPage} />
       <Route component={NotFound} />
     </Switch>
   );

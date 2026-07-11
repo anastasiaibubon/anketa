@@ -1,16 +1,21 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { onAuthChange } from '@/lib/auth';
 import { generateToken } from '@/lib/utils';
 import { Question, cloneDefaultQuestions, generateQuestionId } from '@/lib/questions';
 import { NotebookLayout } from '@/components/layout/NotebookLayout';
+import type { User } from 'firebase/auth';
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>(cloneDefaultQuestions());
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => onAuthChange(setUser), []);
 
   const updateQuestion = (id: string, patch: Partial<Question>) => {
     setQuestions((qs) => qs.map((q) => (q.id === id ? { ...q, ...patch } : q)));
@@ -66,7 +71,15 @@ export default function LandingPage() {
       // under these rules, so keeping the key off it buys no real
       // protection anyway — the results page below still requires the
       // caller to already know this exact key before showing responses.
-      await setDoc(doc(db, 'rooms', roomId), { createdAt, questions: cleaned, viewKey });
+      // `createdBy` is only set when the creator is signed in, so their
+      // dashboard can list it later; anonymous creation still works exactly
+      // as before, just without showing up in any dashboard.
+      await setDoc(doc(db, 'rooms', roomId), {
+        createdAt,
+        questions: cleaned,
+        viewKey,
+        ...(user ? { createdBy: user.uid } : {}),
+      });
       setLocation(`/created/${roomId}/${viewKey}`);
     } catch (err) {
       console.error(err);
@@ -77,6 +90,16 @@ export default function LandingPage() {
 
   return (
     <NotebookLayout>
+      <div className="flex justify-start mb-3">
+        <button
+          type="button"
+          onClick={() => setLocation(user ? '/dashboard' : '/login')}
+          className="font-space text-[11px] py-1 px-2 rounded-md border-2 border-ink bg-transparent cursor-pointer"
+          data-testid="link-nav-account"
+        >
+          {user ? '🗂️ Мої анкети' : '✨ Увійти'}
+        </button>
+      </div>
       <h1 className="text-[42px] font-bold m-0 mb-1 -rotate-1 text-ink leading-none">Анкета для друзів 💌</h1>
       <p className="text-[17px] text-pencil m-0 mb-5">
         Напиши свої питання (або залиш ці) й розішли друзям — відповіді прийдуть тобі.
