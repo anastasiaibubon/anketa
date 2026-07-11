@@ -3,14 +3,8 @@ import { useLocation } from 'wouter';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { generateToken } from '@/lib/utils';
-import { Question, QuestionType, cloneDefaultQuestions, generateQuestionId } from '@/lib/questions';
+import { Question, cloneDefaultQuestions, generateQuestionId } from '@/lib/questions';
 import { NotebookLayout } from '@/components/layout/NotebookLayout';
-
-const TYPE_LABELS: Record<QuestionType, string> = {
-  text: 'Коротка відповідь',
-  textarea: 'Довга відповідь',
-  choice: 'Варіанти',
-};
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
@@ -20,14 +14,6 @@ export default function LandingPage() {
 
   const updateQuestion = (id: string, patch: Partial<Question>) => {
     setQuestions((qs) => qs.map((q) => (q.id === id ? { ...q, ...patch } : q)));
-  };
-
-  const updateOptions = (id: string, raw: string) => {
-    const options = raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    updateQuestion(id, { options });
   };
 
   const removeQuestion = (id: string) => {
@@ -52,18 +38,15 @@ export default function LandingPage() {
   };
 
   const handleCreate = async () => {
+    // The builder only authors plain text questions now (no long-answer or
+    // multiple-choice picker), so every question is normalized to `text`
+    // with no leftover `options`, regardless of what it started as.
     const cleaned = questions
-      .map((q) => ({ ...q, label: q.label.trim() }))
-      .filter((q) => q.label.length > 0)
-      .map((q) => (q.type === 'choice' ? { ...q, options: (q.options || []).filter(Boolean) } : q));
+      .map((q) => ({ id: q.id, label: q.label.trim(), type: 'text' as const, required: q.required }))
+      .filter((q) => q.label.length > 0);
 
     if (cleaned.length === 0) {
       setError('Додай хоча б одне питання перед створенням.');
-      return;
-    }
-    const badChoice = cleaned.find((q) => q.type === 'choice' && (!q.options || q.options.length === 0));
-    if (badChoice) {
-      setError(`Питання "${badChoice.label}" — вибери хоча б два варіанти відповіді.`);
       return;
     }
 
@@ -113,17 +96,6 @@ export default function LandingPage() {
             </div>
 
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <select
-                value={q.type}
-                onChange={(e) => updateQuestion(q.id, { type: e.target.value as QuestionType })}
-                className="font-space text-xs py-1 px-2 rounded-md border-2 border-pencil bg-transparent cursor-pointer"
-                data-testid={`select-question-type-${i}`}
-              >
-                {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-
               <button
                 type="button"
                 onClick={() => moveQuestion(i, -1)}
@@ -152,17 +124,6 @@ export default function LandingPage() {
                 🗑️ Видалити
               </button>
             </div>
-
-            {q.type === 'choice' && (
-              <input
-                type="text"
-                value={(q.options || []).join(', ')}
-                onChange={(e) => updateOptions(q.id, e.target.value)}
-                placeholder="Варіанти через кому: Кіт, Собака, Обидва"
-                className="dashed-input mt-2"
-                data-testid={`input-question-options-${i}`}
-              />
-            )}
           </div>
         ))}
       </div>
