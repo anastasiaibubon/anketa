@@ -1,3 +1,3 @@
-- [Anketa Firestore viewKeys read-blocked](anketa-firestore-viewkeys.md) — `viewKeys` collection denies all reads (get+list) via Firestore rules; results page relying on it fails for everyone until rules are fixed in Firebase console.
+- [Anketa Firestore viewKeys fully blocked](anketa-firestore-viewkeys.md) — `viewKeys` collection denies ALL access (get+list+create) via Firestore rules; broke both results viewing and room creation until code stopped using that collection.
 - [Anketa Firestore responses is create-only](anketa-firestore-create-only-responses.md) — `rooms/{roomId}/responses` allows create but denies update/delete; model "edits" as new docs sharing an editKey, dedupe to latest by ts.
 - [Anketa rooms doc is publicly readable](anketa-rooms-doc-readable.md) — `rooms/{roomId}` (not viewKeys) allows public get, confirmed via REST; safe to store non-secret config (e.g. custom questions) there for the fill page to read.

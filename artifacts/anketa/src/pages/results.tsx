@@ -60,15 +60,18 @@ export default function ResultsPage() {
 
     async function subscribe() {
       try {
-        const keyDoc = await getDoc(doc(db, 'viewKeys', viewKey));
-        if (!keyDoc.exists() || keyDoc.data().roomId !== roomId) {
+        // The view key lives on the room doc itself (see landing.tsx for why:
+        // the separate `viewKeys` collection is fully inaccessible under the
+        // deployed Firestore rules). Access is gated on the caller already
+        // knowing this exact high-entropy key, not on any collection-level
+        // security rule.
+        const roomSnap = await getDoc(doc(db, 'rooms', roomId));
+        if (!roomSnap.exists() || roomSnap.data().viewKey !== viewKey) {
           setError('Невірне посилання для перегляду 🔒\nПеревір, чи скопіював(-ла) його повністю.');
           setLoading(false);
           return;
         }
-
-        const roomSnap = await getDoc(doc(db, 'rooms', roomId));
-        setQuestions(resolveQuestions(roomSnap.exists() ? (roomSnap.data().questions as Question[] | undefined) : undefined));
+        setQuestions(resolveQuestions(roomSnap.data().questions as Question[] | undefined));
 
         unsubscribe = onSnapshot(
           collection(db, 'rooms', roomId, 'responses'),

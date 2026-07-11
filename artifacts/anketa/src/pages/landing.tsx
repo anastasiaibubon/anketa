@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { generateToken } from '@/lib/utils';
 import { Question, cloneDefaultQuestions, generateQuestionId } from '@/lib/questions';
@@ -41,8 +41,10 @@ export default function LandingPage() {
     // The builder only authors plain text questions now (no long-answer or
     // multiple-choice picker), so every question is normalized to `text`
     // with no leftover `options`, regardless of what it started as.
+    // Firestore rejects `undefined` field values (even nested in an array),
+    // so `required` must always be a real boolean, never left unset.
     const cleaned = questions
-      .map((q) => ({ id: q.id, label: q.label.trim(), type: 'text' as const, required: q.required }))
+      .map((q) => ({ id: q.id, label: q.label.trim(), type: 'text' as const, required: q.required === true }))
       .filter((q) => q.label.length > 0);
 
     if (cleaned.length === 0) {
@@ -57,14 +59,14 @@ export default function LandingPage() {
 
     try {
       const createdAt = Date.now();
-      const batch = writeBatch(db);
-      // The room doc holds no secret — it's reachable via the public "fill" link,
-      // so it must not leak the private view key to anyone who only has that link.
-      batch.set(doc(db, 'rooms', roomId), { createdAt, questions: cleaned });
-      // The view key maps to its room in a separate collection keyed by the
-      // high-entropy secret itself, so there is no path from roomId -> viewKey.
-      batch.set(doc(db, 'viewKeys', viewKey), { roomId, createdAt });
-      await batch.commit();
+      // The view key lives on the room doc itself: the deployed Firestore
+      // rules deny ALL access (read and write) to a separate `viewKeys`
+      // collection, so a two-write batch through it can never succeed. The
+      // `rooms` collection is already world-readable and world-listable
+      // under these rules, so keeping the key off it buys no real
+      // protection anyway — the results page below still requires the
+      // caller to already know this exact key before showing responses.
+      await setDoc(doc(db, 'rooms', roomId), { createdAt, questions: cleaned, viewKey });
       setLocation(`/created/${roomId}/${viewKey}`);
     } catch (err) {
       console.error(err);
