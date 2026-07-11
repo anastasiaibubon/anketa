@@ -73,22 +73,19 @@ export default function LandingPage() {
     setIsCreating(true);
     setError(null);
     const roomId = generateToken(8);
-    const viewKey = generateToken(16);
 
     try {
       const createdAt = Date.now();
-      // The view key lives on the room doc itself: the deployed Firestore
-      // rules deny ALL access (read and write) to a separate `viewKeys`
-      // collection, so a two-write batch through it can never succeed.
       // `ownerUid` must be the signed-in creator's uid — Firestore rules
-      // require it to match `request.auth.uid` exactly on create.
+      // require it to match `request.auth.uid` exactly on create. Viewing
+      // responses now happens only through the owner-gated dashboard, so
+      // there's no separate view key to generate or store anymore.
       await setDoc(doc(db, 'rooms', roomId), {
         createdAt,
         questions: cleaned,
-        viewKey,
         ownerUid: user.uid,
       });
-      setLocation(`/created/${roomId}/${viewKey}`);
+      setLocation(`/created/${roomId}`);
     } catch (err) {
       console.error(err);
       setIsCreating(false);
