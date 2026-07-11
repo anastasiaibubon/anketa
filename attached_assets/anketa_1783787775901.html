@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Анкета для друзів</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --paper: #FBF6E9;
+    --lines: #B9CFE8;
+    --ink: #2C3E5C;
+    --pink: #E85D75;
+    --yellow: #F4C430;
+    --pencil: #8B8680;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: #DCE6D8;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(255,255,255,0.4) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(255,255,255,0.3) 0%, transparent 50%);
+    font-family: 'Patrick Hand', cursive;
+    color: var(--ink);
+    display: flex; justify-content: center;
+    padding: 24px 12px 60px;
+  }
+  .page { width: 100%; max-width: 520px; position: relative; }
+  .notebook {
+    background: var(--paper);
+    border-radius: 4px;
+    box-shadow: 0 12px 30px rgba(44,62,92,0.25), 0 2px 6px rgba(44,62,92,0.15);
+    position: relative;
+    padding: 32px 28px 32px 56px;
+    background-image: repeating-linear-gradient(to bottom, transparent, transparent 33px, var(--lines) 34px);
+    background-position: 0 90px;
+  }
+  .binder-holes {
+    position: absolute; left: 18px; top: 40px; bottom: 40px; width: 14px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .binder-holes span {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #DCE6D8; box-shadow: inset 0 2px 4px rgba(0,0,0,0.25);
+  }
+  .margin-line { position: absolute; left: 46px; top: 0; bottom: 0; width: 2px; background: var(--pink); opacity: 0.35; }
+  h1 { font-family: 'Caveat', cursive; font-size: 42px; font-weight: 700; margin: 0 0 4px; transform: rotate(-1deg); }
+  .subtitle { font-size: 17px; color: var(--pencil); margin: 0 0 20px; }
+  label.q { display: block; font-size: 19px; margin: 22px 0 6px; }
+  label.q .num { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--pink); margin-right: 6px; }
+  input[type=text], textarea {
+    width: 100%; border: none; border-bottom: 2px dashed var(--pencil);
+    background: transparent; font-family: 'Patrick Hand', cursive; font-size: 18px;
+    color: var(--ink); padding: 4px 2px; resize: none;
+  }
+  input[type=text]:focus, textarea:focus { outline: none; border-bottom-color: var(--pink); }
+  .options { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .sticker {
+    font-family: 'Patrick Hand', cursive; font-size: 16px; padding: 6px 14px; border-radius: 20px;
+    border: 2px solid var(--pencil); background: transparent; cursor: pointer; color: var(--ink);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .sticker.selected { background: var(--yellow); border-color: var(--yellow); transform: rotate(-2deg) scale(1.05); }
+  .btn {
+    margin-top: 24px; width: 100%; padding: 14px;
+    font-family: 'Caveat', cursive; font-size: 24px; font-weight: 700;
+    color: var(--paper); background: var(--pink); border: none; border-radius: 10px;
+    cursor: pointer; box-shadow: 0 4px 0 #b8455a; transition: transform 0.1s ease;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b8455a; }
+  .btn.secondary { background: var(--ink); box-shadow: 0 4px 0 #17233a; }
+  .btn.secondary:active { box-shadow: 0 1px 0 #17233a; }
+  .stamp {
+    position: absolute; top: 24px; right: 24px; width: 74px; height: 74px;
+    border: 3px solid var(--pink); border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; text-align: center; font-family: 'Space Mono', monospace; font-size: 10px;
+    color: var(--pink); transform: rotate(12deg); opacity: 0.75; line-height: 1.3; pointer-events: none;
+  }
+  .thanks { text-align: center; padding: 40px 10px; }
+  .thanks .big { font-family: 'Caveat', cursive; font-size: 40px; color: var(--pink); }
+  .response-card {
+    background: var(--paper); border-radius: 6px; padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 6px 16px rgba(44,62,92,0.18); transform: rotate(var(--tilt, -1deg));
+  }
+  .response-card h3 { font-family: 'Caveat', cursive; font-size: 28px; margin: 0 0 10px; }
+  .response-card .a-q { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--pencil); margin-top: 10px; }
+  .response-card .a-v { font-size: 17px; margin: 2px 0 0; }
+  .empty-state { text-align: center; color: var(--pencil); font-size: 18px; padding: 40px 10px; }
+  .share-hint { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--pencil); text-align: center; margin-top: 16px; }
+  .link-box {
+    background: #fff; border: 2px dashed var(--pencil); border-radius: 8px;
+    padding: 12px; margin: 10px 0; word-break: break-all;
+    font-family: 'Space Mono', monospace; font-size: 12px; position: relative;
+  }
+  .link-box .label { font-family: 'Patrick Hand', cursive; font-size: 16px; margin-bottom: 6px; display:block; }
+  .copy-btn {
+    margin-top: 8px; font-family: 'Space Mono', monospace; font-size: 12px;
+    padding: 6px 12px; border-radius: 6px; border: 2px solid var(--ink); background: var(--yellow);
+    cursor: pointer;
+  }
+  .warning-box {
+    background: #FFF3E0; border-left: 4px solid var(--yellow); padding: 10px 14px;
+    font-size: 15px; border-radius: 4px; margin: 16px 0;
+  }
+  .error-box { text-align: center; padding: 40px 10px; color: var(--pink); font-size: 18px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="notebook">
+    <div class="binder-holes"><span></span><span></span><span></span><span></span></div>
+    <div class="margin-line"></div>
+    <div class="stamp">ДРУЖБА<br>НАЗАВЖДИ</div>
+    <div id="app"></div>
+  </div>
+</div>
+
+<script>
+// ===== FIREBASE SETUP =====
+// Встав сюди свій firebaseConfig з Firebase Console → Project settings → Your apps → Web app
+const firebaseConfig = {
+  apiKey: "AIzaSyA_QOlff5KMZBDbMIz5upWs0PbUHjF5RRM",
+  authDomain: "anketa-8fd17.firebaseapp.com",
+  projectId: "anketa-8fd17",
+  storageBucket: "anketa-8fd17.firebasestorage.app",
+  messagingSenderId: "426369229587",
+  appId: "1:426369229587:web:c4f4f2961a7da24eae70e6"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+// ===========================
+
+const app = document.getElementById('app');
+
+function randToken(len) {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let out = '';
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  for (let i = 0; i < len; i++) out += chars[arr[i] % chars.length];
+  return out;
+}
+
+function baseUrl() {
+  const url = location.href.split('#')[0];
+  return /^https?:\/\//.test(url) ? url : null;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function row(label, val) {
+  if (!val) return '';
+  return `<div class="a-q">${escapeHtml(label)}</div><div class="a-v">${escapeHtml(val)}</div>`;
+}
+
+// ---------- ROUTING ----------
+const hash = location.hash.slice(1); // remove '#'
+
+if (hash.startsWith('f_')) {
+  renderFillForm(hash.slice(2));
+} else if (hash.startsWith('v_')) {
+  const rest = hash.slice(2);
+  const sep = rest.indexOf('_');
+  const roomId = rest.slice(0, sep);
+  const viewKey = rest.slice(sep + 1);
+  renderViewResponses(roomId, viewKey);
+} else {
+  renderLanding();
+}
+
+// ---------- LANDING ----------
+function renderLanding() {
+  app.innerHTML = `
+    <h1>Анкета для друзів 💌</h1>
+    <p class="subtitle">Створи свою анкету й розішли друзям — відповіді прийдуть тобі.</p>
+    <button class="btn" id="createBtn">Створити свою анкету 🆕</button>
+    <p class="share-hint">Кожна створена анкета — окрема, ізольована кімната. Твої друзі не побачать чужі відповіді, і навпаки.</p>
+  `;
+  document.getElementById('createBtn').onclick = createRoom;
+}
+
+async function createRoom() {
+  app.innerHTML = '<p class="subtitle">Створюю...</p>';
+  const roomId = randToken(8);
+  const viewKey = randToken(16);
+  try {
+    await db.collection('rooms').doc(roomId).set({ viewKey, createdAt: Date.now() });
+  } catch (err) {
+    app.innerHTML = '<div class="error-box">Не вдалося створити анкету. Спробуй ще раз.</div>';
+    console.error(err);
+    return;
+  }
+  const base = baseUrl() || (location.origin + location.pathname);
+  const fillTag = '#f_' + roomId;
+  const viewTag = '#v_' + roomId + '_' + viewKey;
+  const fillLink = base + fillTag;
+  const viewLink = base + viewTag;
+  app.innerHTML = `
+    <h1>Готово! 🎉</h1>
+    <p class="subtitle">Ось два посилання. Не переплутай, кому яке давати.</p>
+    <div class="link-box">
+      <span class="label">👯 Для друзів (щоб заповнювали):</span>
+      ${escapeHtml(fillLink)}
+      <br><button class="copy-btn" data-copy="${escapeHtml(fillLink)}">Скопіювати</button>
+    </div>
+    <div class="warning-box">
+      ⚠️ Друге посилання — тільки для тебе. Збережи його собі (нотатки, закладка) — це єдиний спосіб потім побачити відповіді.
+    </div>
+    <div class="link-box">
+      <span class="label">🔒 Для тебе (перегляд відповідей):</span>
+      ${escapeHtml(viewLink)}
+      <br><button class="copy-btn" data-copy="${escapeHtml(viewLink)}">Скопіювати</button>
+    </div>
+    <button class="btn secondary" id="goView">Перейти до перегляду зараз →</button>
+  `;
+
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.onclick = () => {
+      navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+        btn.textContent = 'Скопійовано ✓';
+        setTimeout(() => { btn.textContent = 'Скопіювати'; }, 1500);
+      });
+    };
+  });
+  document.getElementById('goView').onclick = () => {
+    location.hash = 'v_' + roomId + '_' + viewKey;
+    location.reload();
+  };
+}
+
+// ---------- FILL FORM ----------
+function renderFillForm(roomId) {
+  app.innerHTML = `
+    <h1>Анкета для друзів 💌</h1>
+    <p class="subtitle">Заповни чесно, як у дитинстві!</p>
+    <form id="anketaForm">
+      <label class="q"><span class="num">01</span>Як тебе звати?</label>
+      <input type="text" id="q_name" required>
+      <label class="q"><span class="num">02</span>Улюблений колір</label>
+      <input type="text" id="q_color">
+      <label class="q"><span class="num">03</span>Улюблена їжа</label>
+      <input type="text" id="q_food">
+      <label class="q"><span class="num">04</span>Улюблена пісня чи гурт</label>
+      <input type="text" id="q_song">
+      <label class="q"><span class="num">05</span>Улюблений фільм або мультик</label>
+      <input type="text" id="q_movie">
+      <label class="q"><span class="num">06</span>Ким мріяв(-ла) стати в дитинстві?</label>
+      <input type="text" id="q_dream">
+      <label class="q"><span class="num">07</span>Кіт чи собака?</label>
+      <div class="options" id="q_pet">
+        <button type="button" class="sticker" data-val="Кіт">🐱 Кіт</button>
+        <button type="button" class="sticker" data-val="Собака">🐶 Собака</button>
+        <button type="button" class="sticker" data-val="Обидва">🐾 Обидва</button>
+      </div>
+      <label class="q"><span class="num">08</span>Найкращий спогад з дитинства</label>
+      <textarea id="q_memory" rows="3"></textarea>
+      <label class="q"><span class="num">09</span>Твоя найкраща риса характеру</label>
+      <input type="text" id="q_trait">
+      <label class="q"><span class="num">10</span>Побажання для мене 💛</label>
+      <textarea id="q_wish" rows="3"></textarea>
+      <button type="submit" class="btn">Відправити ✉️</button>
+    </form>
+  `;
+  let selectedPet = '';
+  document.querySelectorAll('#q_pet .sticker').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#q_pet .sticker').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedPet = btn.dataset.val;
+    };
+  });
+  document.getElementById('anketaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const entry = {
+      name: document.getElementById('q_name').value.trim() || 'Анонім',
+      color: document.getElementById('q_color').value.trim(),
+      food: document.getElementById('q_food').value.trim(),
+      song: document.getElementById('q_song').value.trim(),
+      movie: document.getElementById('q_movie').value.trim(),
+      dream: document.getElementById('q_dream').value.trim(),
+      pet: selectedPet,
+      memory: document.getElementById('q_memory').value.trim(),
+      trait: document.getElementById('q_trait').value.trim(),
+      wish: document.getElementById('q_wish').value.trim(),
+      ts: Date.now()
+    };
+    const key = 'response:' + roomId + ':' + entry.ts + '-' + Math.random().toString(36).slice(2, 8);
+    try {
+      await db.collection('rooms').doc(roomId).collection('responses').add(entry);
+      app.innerHTML = `
+        <div class="thanks">
+          <div class="big">Дякую! 🎉</div>
+          <p>Твоя відповідь уже летить до того, хто скинув анкету.</p>
+        </div>`;
+    } catch (err) {
+      alert('Ой, не вдалося відправити. Спробуй ще раз.');
+      console.error(err);
+    }
+  });
+}
+
+// ---------- VIEW RESPONSES ----------
+async function renderViewResponses(roomId, viewKey) {
+  app.innerHTML = '<p class="subtitle">Перевіряю доступ...</p>';
+  let room;
+  try {
+    const docSnap = await db.collection('rooms').doc(roomId).get();
+    room = docSnap.exists ? docSnap.data() : null;
+  } catch (err) {
+    room = null;
+  }
+  if (!room || room.viewKey !== viewKey) {
+    app.innerHTML = '<div class="error-box">Невірне посилання для перегляду 🔒<br>Перевір, чи скопіював(-ла) його повністю.</div>';
+    return;
+  }
+  app.innerHTML = `
+    <h1>Відповіді друзів 📬</h1>
+    <p class="subtitle" id="countText">Завантажую...</p>
+    <div id="responsesList"></div>
+  `;
+  const listEl = document.getElementById('responsesList');
+  const countEl = document.getElementById('countText');
+  try {
+    const snap = await db.collection('rooms').doc(roomId).collection('responses').get();
+    const entries = [];
+    snap.forEach(d => entries.push(d.data()));
+    if (entries.length === 0) {
+      countEl.textContent = 'Поки що тиша...';
+      listEl.innerHTML = '<div class="empty-state">Ще ніхто не відповів 🙈<br>Кидай посилання друзям!</div>';
+      return;
+    }
+    entries.sort((a, b) => b.ts - a.ts);
+    countEl.textContent = entries.length + (entries.length === 1 ? ' відповідь' : ' відповідей');
+    entries.forEach((e, i) => {
+      const tilt = (i % 2 === 0 ? -1 : 1) * (1 + (i % 3));
+      const card = document.createElement('div');
+      card.className = 'response-card';
+      card.style.setProperty('--tilt', tilt + 'deg');
+      card.innerHTML = `
+        <h3>${escapeHtml(e.name)}</h3>
+        ${row('Колір', e.color)}
+        ${row('Їжа', e.food)}
+        ${row('Пісня/гурт', e.song)}
+        ${row('Фільм/мультик', e.movie)}
+        ${row('Мрія дитинства', e.dream)}
+        ${row('Кіт чи собака', e.pet)}
+        ${row('Спогад', e.memory)}
+        ${row('Риса характеру', e.trait)}
+        ${row('Побажання', e.wish)}
+      `;
+      listEl.appendChild(card);
+    });
+  } catch (err) {
+    countEl.textContent = 'Не вдалося завантажити відповіді.';
+    console.error(err);
+  }
+}
+</script>
+</body>
+</html>
