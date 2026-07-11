@@ -1,3 +1,4 @@
-- [Anketa Firestore viewKeys fully blocked](anketa-firestore-viewkeys.md) — `viewKeys` collection denies ALL access (get+list+create) via Firestore rules; broke both results viewing and room creation until code stopped using that collection.
+- [Anketa dropped viewKey/secret-link results](anketa-firestore-viewkeys.md) — old viewKey/secret-link design is fully retired; results are now viewed only via the owner-gated dashboard.
 - [Anketa Firestore responses is create-only](anketa-firestore-create-only-responses.md) — `rooms/{roomId}/responses` allows create but denies update/delete; model "edits" as new docs sharing an editKey, dedupe to latest by ts.
-- [Anketa rooms doc is publicly readable](anketa-rooms-doc-readable.md) — `rooms/{roomId}` (not viewKeys) allows public get, confirmed via REST; safe to store non-secret config (e.g. custom questions) there for the fill page to read.
+- [Anketa rooms doc access model](anketa-rooms-doc-readable.md) — `rooms/{roomId}` single-doc `get` is public (fill page needs it); `list`/`create` and `responses` reads require auth + ownerUid match.
+- [Testing Firebase email-link auth e2e](magic-link-e2e-testing.md) — use mailinator's public inbox API + Identity Toolkit REST to get a real ID token and verify auth-gated Firestore rules without a human clicking email.

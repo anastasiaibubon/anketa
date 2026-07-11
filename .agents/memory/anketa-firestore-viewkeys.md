@@ -1,12 +1,13 @@
 ---
-name: Anketa Firestore viewKeys fully blocked (read AND write)
-description: Firestore rules deny all access — reads and writes — to the viewKeys collection, so any code path through it (creation or results viewing) always fails.
+name: Anketa dropped the viewKey / secret-link results model
+description: The old "secret viewKey in the URL" design (viewKeys collection, then a viewKey field on rooms, then a /results/:roomId/:key page) is gone. Results are now viewed only through the owner-gated dashboard.
 ---
 
-The `anketa` artifact (Firebase project `anketa-8fd17`) writes a room's private access secret into a `viewKeys/{viewKey}` document at creation time, and `results.tsx` validates the private results link by doing `getDoc(doc(db, 'viewKeys', viewKey))`.
+Anketa went through three designs for "how does the creator see responses":
+1. A separate `viewKeys/{viewKey}` collection — Firestore rules denied all access to it (read AND write), so this never worked at all.
+2. A `viewKey` field stored directly on the `rooms/{roomId}` doc, checked by a `/results/:roomId/:key` page — worked, but was a bearer-token-in-URL design.
+3. **Current design**: Firebase email-link auth + an `ownerUid` field on `rooms/{roomId}`. Creating a room requires login; the dashboard queries `rooms` filtered by `ownerUid == auth.uid` and reads `responses` inline (gated by the same ownership check). There is no `viewKey` field, no `/results` route, and no `results.tsx` file anymore — all removed.
 
-Verified via direct Firestore REST calls (with a correctly matching Referer/Origin header, since the project's API key is referrer-restricted to the app's domain): `get`, `list`, AND `create` on `viewKeys` all return `PERMISSION_DENIED`, while `rooms/{roomId}` (create, get, list all succeed — and `rooms` list is fully open/enumerable to anyone) and `rooms/{roomId}/responses` (create only) behave as documented elsewhere. This proves it's a Firestore Security Rule denial scoped to the `viewKeys` collection specifically, covering both directions — not an API-key/referrer issue (those apply uniformly across all Firestore calls, not per collection).
+**Why:** the product explicitly moved from "anonymous creation, optional login for convenience" to "login required to create and view your own anketas," making a separate secret-link mechanism redundant — ownership + auth already answers "who can see this."
 
-**Why this matters:** any code path that touches `viewKeys` always fails — this broke both the results-viewing page (`getDoc` on `viewKeys` always throws) AND, worse, room *creation* itself: `landing.tsx` used to write `rooms/{roomId}` and `viewKeys/{viewKey}` in one atomic `writeBatch`, so the guaranteed `viewKeys` failure made the whole batch fail every time — no anketa could ever be created.
-
-**How to apply:** There is no `firestore.rules` / `firebase.json` checked into this repo — Firestore rules for this project are managed directly in the Firebase console, outside agent reach. Don't assume the rules match what's implied by app code/comments; if debugging anything read/write related in this app, verify actual Firestore behavior with a real REST call (with matching Referer header) rather than trusting the client SDK code path alone. Given no admin access to fix the rules, the actual code fix taken: stop using the `viewKeys` collection entirely — store `viewKey` as a plain field on the `rooms/{roomId}` doc instead, and have both creation and results-viewing read/write it there. This trades nothing meaningful security-wise since `rooms` list was already fully public (see the anketa-rooms-doc-readable memory / the "rooms list is public" follow-up task).
+**How to apply:** if old references to `viewKey`, `viewKeys`, or a `/results/:roomId/:key` route surface anywhere (docs, screenshots, old links shared by users), treat them as belonging to a retired design — don't reintroduce that pattern or assume it still exists in the code. See `anketa-rooms-doc-readable.md` for the current access model.
