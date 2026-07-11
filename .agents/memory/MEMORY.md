@@ -1,0 +1,1 @@
+- [Anketa Firestore viewKeys read-blocked](anketa-firestore-viewkeys.md) — `viewKeys` collection denies all reads (get+list) via Firestore rules; results page relying on it fails for everyone until rules are fixed in Firebase console.
