@@ -36,7 +36,7 @@ export default function DashboardPage() {
       try {
         const q = query(
           collection(db, 'rooms'),
-          where('createdBy', '==', user.uid),
+          where('ownerUid', '==', user.uid),
           orderBy('createdAt', 'desc')
         );
         const snap = await getDocs(q);

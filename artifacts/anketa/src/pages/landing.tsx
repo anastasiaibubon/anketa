@@ -13,7 +13,12 @@ export default function LandingPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>(cloneDefaultQuestions());
-  const [user, setUser] = useState<User | null>(null);
+  // `undefined` = auth state not resolved yet. Creating a room writes
+  // `ownerUid`, and Firestore rules require `request.auth.uid` to match it —
+  // so the create button must stay disabled until we know for sure whether
+  // there's a logged-in user, rather than racing ahead while `user` is still
+  // `null` by default and only "really" null once onAuthStateChanged fires.
+  const [user, setUser] = useState<User | null | undefined>(undefined);
 
   useEffect(() => onAuthChange(setUser), []);
 
@@ -43,6 +48,14 @@ export default function LandingPage() {
   };
 
   const handleCreate = async () => {
+    // Creating a room now requires being signed in: Firestore rules require
+    // `request.auth != null && request.resource.data.ownerUid == request.auth.uid`
+    // on `rooms` create, so an anonymous write is always rejected.
+    if (!user) {
+      setLocation('/login');
+      return;
+    }
+
     // The builder only authors plain text questions now (no long-answer or
     // multiple-choice picker), so every question is normalized to `text`
     // with no leftover `options`, regardless of what it started as.
@@ -66,19 +79,14 @@ export default function LandingPage() {
       const createdAt = Date.now();
       // The view key lives on the room doc itself: the deployed Firestore
       // rules deny ALL access (read and write) to a separate `viewKeys`
-      // collection, so a two-write batch through it can never succeed. The
-      // `rooms` collection is already world-readable and world-listable
-      // under these rules, so keeping the key off it buys no real
-      // protection anyway — the results page below still requires the
-      // caller to already know this exact key before showing responses.
-      // `createdBy` is only set when the creator is signed in, so their
-      // dashboard can list it later; anonymous creation still works exactly
-      // as before, just without showing up in any dashboard.
+      // collection, so a two-write batch through it can never succeed.
+      // `ownerUid` must be the signed-in creator's uid — Firestore rules
+      // require it to match `request.auth.uid` exactly on create.
       await setDoc(doc(db, 'rooms', roomId), {
         createdAt,
         questions: cleaned,
         viewKey,
-        ...(user ? { createdBy: user.uid } : {}),
+        ownerUid: user.uid,
       });
       setLocation(`/created/${roomId}/${viewKey}`);
     } catch (err) {
@@ -164,16 +172,26 @@ export default function LandingPage() {
 
       <button
         onClick={handleCreate}
-        disabled={isCreating}
+        disabled={isCreating || user === undefined}
         className="action-btn"
         data-testid="button-create"
       >
-        {isCreating ? 'Створюю...' : 'Створити свою анкету 🆕'}
+        {isCreating
+          ? 'Створюю...'
+          : user
+            ? 'Створити свою анкету 🆕'
+            : 'Увійти й створити анкету 🆕'}
       </button>
 
       {error && (
         <p className="font-space text-[13px] text-pink text-center mt-3" data-testid="text-create-error">
           {error}
+        </p>
+      )}
+
+      {user === null && (
+        <p className="font-space text-[11px] text-pencil text-center mt-3" data-testid="text-login-required">
+          Щоб створити анкету, потрібно увійти через магічне посилання на пошту.
         </p>
       )}
 
