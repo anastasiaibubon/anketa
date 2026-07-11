@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { NotebookLayout } from '@/components/layout/NotebookLayout';
 
 interface ResponseData {
+  id: string;
   name: string;
   color: string;
   food: string;
@@ -16,6 +17,22 @@ interface ResponseData {
   trait: string;
   wish: string;
   ts: number;
+  editKey?: string;
+}
+
+// Firestore rules here only allow creating responses, not updating them, so
+// a responder "editing" their answer actually creates a new document that
+// shares the same editKey. Keep only the newest document per editKey (or per
+// doc id, for older responses saved before editKey existed) so the creator
+// only ever sees each friend's latest version.
+function dedupeToLatest(entries: ResponseData[]): ResponseData[] {
+  const latestByKey = new Map<string, ResponseData>();
+  for (const entry of entries) {
+    const key = entry.editKey || entry.id;
+    const existing = latestByKey.get(key);
+    if (!existing || entry.ts > existing.ts) latestByKey.set(key, entry);
+  }
+  return Array.from(latestByKey.values());
 }
 
 const ORIGINAL_TITLE = 'Анкета для друзів 💌';
@@ -39,6 +56,10 @@ export default function ResultsPage() {
   const lastSeenTsRef = useRef<number>(Number(localStorage.getItem(seenKey) || 0));
   const hasVisitedBeforeRef = useRef<boolean>(localStorage.getItem(seenKey) !== null);
   const isFirstSnapshotRef = useRef(true);
+  // Tracks editKeys already seen this session so a friend re-submitting an
+  // edited answer (a new document, since responses can't be updated in
+  // place) doesn't get mistaken for a brand-new response arriving live.
+  const knownKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -61,11 +82,17 @@ export default function ResultsPage() {
               snap.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                   const added = change.doc.data() as ResponseData;
-                  setLiveNewCount((c) => c + 1);
-                  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                    new Notification('Нова відповідь на анкету! 🎉', {
-                      body: `${added.name} щойно відповів(-ла)`,
-                    });
+                  const dedupeKey = added.editKey || change.doc.id;
+                  // Only a genuinely new person answering should count as a
+                  // "new response" — a friend fixing a typo creates a new
+                  // document under the same editKey, which we've seen before.
+                  if (!knownKeysRef.current.has(dedupeKey)) {
+                    setLiveNewCount((c) => c + 1);
+                    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                      new Notification('Нова відповідь на анкету! 🎉', {
+                        body: `${added.name} щойно відповів(-ла)`,
+                      });
+                    }
                   }
                 }
               });
@@ -73,15 +100,17 @@ export default function ResultsPage() {
             isFirstSnapshotRef.current = false;
 
             const entries: ResponseData[] = [];
-            snap.forEach((d) => entries.push(d.data() as ResponseData));
-            entries.sort((a, b) => b.ts - a.ts);
-            setResponses(entries);
+            snap.forEach((d) => entries.push({ id: d.id, ...(d.data() as Omit<ResponseData, 'id'>) }));
+            entries.forEach((entry) => knownKeysRef.current.add(entry.editKey || entry.id));
+            const deduped = dedupeToLatest(entries);
+            deduped.sort((a, b) => b.ts - a.ts);
+            setResponses(deduped);
             setLoading(false);
 
             // Remember the newest response we've now displayed, so a future visit
             // only badges responses that are actually new since then.
-            if (entries.length > 0) {
-              localStorage.setItem(seenKey, String(entries[0].ts));
+            if (deduped.length > 0) {
+              localStorage.setItem(seenKey, String(deduped[0].ts));
             }
           },
           (err) => {
@@ -195,7 +224,7 @@ export default function ResultsPage() {
               const isNew = hasVisitedBeforeRef.current && r.ts > lastSeenTsRef.current;
               return (
                 <div 
-                  key={r.ts} 
+                  key={r.id} 
                   className="postcard animate-in fade-in zoom-in-95 duration-500 fill-mode-both relative"
                   style={{ 
                     transform: `rotate(${tilt}deg)`,
