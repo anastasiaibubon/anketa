@@ -9,10 +9,11 @@ import DashboardPage from '@/pages/dashboard';
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={LandingPage} />
+      <Route path="/" component={LoginPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/create" component={LandingPage} />
       <Route path="/created/:roomId" component={CreatedPage} />
       <Route path="/fill/:roomId" component={FillPage} />
-      <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route component={NotFound} />
     </Switch>

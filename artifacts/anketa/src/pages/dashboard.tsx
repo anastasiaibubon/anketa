@@ -258,7 +258,7 @@ export default function DashboardPage() {
       )}
 
       <button
-        onClick={() => setLocation('/')}
+        onClick={() => setLocation('/create')}
         className="action-btn secondary mt-4"
         data-testid="button-create-new"
       >
