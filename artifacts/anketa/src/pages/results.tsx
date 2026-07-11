@@ -3,21 +3,14 @@ import { useParams } from 'wouter';
 import { doc, getDoc, collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { NotebookLayout } from '@/components/layout/NotebookLayout';
+import { Question, resolveQuestions, getAnswerValue } from '@/lib/questions';
 
 interface ResponseData {
   id: string;
-  name: string;
-  color: string;
-  food: string;
-  song: string;
-  movie: string;
-  dream: string;
-  pet: string;
-  memory: string;
-  trait: string;
-  wish: string;
+  answers?: Record<string, string>;
   ts: number;
   editKey?: string;
+  [legacyField: string]: unknown;
 }
 
 // Firestore rules here only allow creating responses, not updating them, so
@@ -42,10 +35,11 @@ export default function ResultsPage() {
   const roomId = params.roomId!;
   const viewKey = params.key!;
   const seenKey = `anketa_seen_${roomId}`;
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [responses, setResponses] = useState<ResponseData[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   );
@@ -73,6 +67,9 @@ export default function ResultsPage() {
           return;
         }
 
+        const roomSnap = await getDoc(doc(db, 'rooms', roomId));
+        setQuestions(resolveQuestions(roomSnap.exists() ? (roomSnap.data().questions as Question[] | undefined) : undefined));
+
         unsubscribe = onSnapshot(
           collection(db, 'rooms', roomId, 'responses'),
           (snap) => {
@@ -89,8 +86,10 @@ export default function ResultsPage() {
                   if (!knownKeysRef.current.has(dedupeKey)) {
                     setLiveNewCount((c) => c + 1);
                     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                      const nameQuestion = questions[0];
+                      const respondentName = nameQuestion ? getAnswerValue(added, nameQuestion) : '';
                       new Notification('Нова відповідь на анкету! 🎉', {
-                        body: `${added.name} щойно відповів(-ла)`,
+                        body: respondentName ? `${respondentName} щойно відповів(-ла)` : 'Хтось щойно відповів(-ла)',
                       });
                     }
                   }
@@ -100,7 +99,7 @@ export default function ResultsPage() {
             isFirstSnapshotRef.current = false;
 
             const entries: ResponseData[] = [];
-            snap.forEach((d) => entries.push({ id: d.id, ...(d.data() as Omit<ResponseData, 'id'>) }));
+            snap.forEach((d) => entries.push({ id: d.id, ...(d.data() as Omit<ResponseData, 'id'>) } as ResponseData));
             entries.forEach((entry) => knownKeysRef.current.add(entry.editKey || entry.id));
             const deduped = dedupeToLatest(entries);
             deduped.sort((a, b) => b.ts - a.ts);
@@ -127,6 +126,7 @@ export default function ResultsPage() {
     }
     subscribe();
     return () => unsubscribe?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, viewKey]);
 
   useEffect(() => {
@@ -174,6 +174,9 @@ export default function ResultsPage() {
     ? responses.filter((r) => r.ts > lastSeenTsRef.current).length
     : 0;
 
+  const headerQuestion = questions[0];
+  const detailQuestions = questions.slice(1);
+
   return (
     <NotebookLayout hideStamp>
       <h1 className="text-[42px] font-bold m-0 mb-1 -rotate-1 text-ink leading-none">Відповіді друзів 📬</h1>
@@ -205,7 +208,7 @@ export default function ResultsPage() {
           🔔 Сповіщення увімкнено — поки ця сторінка відкрита в браузері, ти миттєво дізнаєшся про нові відповіді.
         </p>
       )}
-      
+
       {responses.length === 0 ? (
         <>
           <p className="text-[17px] text-pencil m-0 mb-5">Поки що тиша...</p>
@@ -222,11 +225,12 @@ export default function ResultsPage() {
             {responses.map((r, i) => {
               const tilt = (i % 2 === 0 ? -1 : 1) * (1 + (i % 3));
               const isNew = hasVisitedBeforeRef.current && r.ts > lastSeenTsRef.current;
+              const headerValue = headerQuestion ? getAnswerValue(r, headerQuestion) : '';
               return (
-                <div 
-                  key={r.id} 
+                <div
+                  key={r.id}
                   className="postcard animate-in fade-in zoom-in-95 duration-500 fill-mode-both relative"
-                  style={{ 
+                  style={{
                     transform: `rotate(${tilt}deg)`,
                     animationDelay: `${i * 100}ms`
                   }}
@@ -236,16 +240,10 @@ export default function ResultsPage() {
                       Нове ✨
                     </span>
                   )}
-                  <h3 className="text-[28px] m-0 mb-2.5 leading-none">{r.name}</h3>
-                  <AnswerRow label="Колір" value={r.color} />
-                  <AnswerRow label="Їжа" value={r.food} />
-                  <AnswerRow label="Пісня/гурт" value={r.song} />
-                  <AnswerRow label="Фільм/мультик" value={r.movie} />
-                  <AnswerRow label="Мрія дитинства" value={r.dream} />
-                  <AnswerRow label="Кіт чи собака" value={r.pet} />
-                  <AnswerRow label="Спогад" value={r.memory} />
-                  <AnswerRow label="Риса характеру" value={r.trait} />
-                  <AnswerRow label="Побажання" value={r.wish} />
+                  <h3 className="text-[28px] m-0 mb-2.5 leading-none">{headerValue || 'Анонім'}</h3>
+                  {detailQuestions.map((q) => (
+                    <AnswerRow key={q.id} label={q.label} value={getAnswerValue(r, q)} />
+                  ))}
                 </div>
               );
             })}

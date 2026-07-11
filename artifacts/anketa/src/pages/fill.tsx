@@ -1,22 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearch } from 'wouter';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { NotebookLayout } from '@/components/layout/NotebookLayout';
+import { Question, resolveQuestions, getAnswerValue } from '@/lib/questions';
 
 interface ResponseData {
-  name: string;
-  color: string;
-  food: string;
-  song: string;
-  movie: string;
-  dream: string;
-  pet: string;
-  memory: string;
-  trait: string;
-  wish: string;
+  answers?: Record<string, string>;
   ts: number;
   editKey?: string;
+  [legacyField: string]: unknown;
 }
 
 function editLinkStorageKey(roomId: string) {
@@ -32,6 +25,10 @@ export default function FillPage() {
   const editKeyParam = searchParams.get('ek');
   const isEditMode = Boolean(editKeyParam);
 
+  const [loadingRoom, setLoadingRoom] = useState(true);
+  const [roomError, setRoomError] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+
   const [checkingEdit, setCheckingEdit] = useState(isEditMode);
   const [editError, setEditError] = useState<string | null>(null);
   const [initialData, setInitialData] = useState<ResponseData | null>(null);
@@ -43,7 +40,37 @@ export default function FillPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const [petOption, setPetOption] = useState<string>('');
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  const setAnswer = (id: string, value: string) => {
+    setAnswers((a) => ({ ...a, [id]: value }));
+  };
+
+  // Load the room's question set. The fill link only contains the (non-secret)
+  // roomId, so this doc is publicly readable by design.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const roomSnap = await getDoc(doc(db, 'rooms', roomId));
+        if (cancelled) return;
+        if (!roomSnap.exists()) {
+          setRoomError('Невірне посилання на анкету 🔒\nПеревір, чи скопіював(-ла) його повністю.');
+        } else {
+          setQuestions(resolveQuestions(roomSnap.data().questions as Question[] | undefined));
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error(err);
+        setRoomError('Не вдалося завантажити анкету.');
+      } finally {
+        if (!cancelled) setLoadingRoom(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId]);
 
   useEffect(() => {
     if (!isEditMode) {
@@ -75,7 +102,6 @@ export default function FillPage() {
             if (!latest || data.ts > latest.ts) latest = data;
           });
           setInitialData(latest);
-          setPetOption(latest!.pet || '');
         }
       } catch (err) {
         if (cancelled) return;
@@ -90,6 +116,19 @@ export default function FillPage() {
       cancelled = true;
     };
   }, [isEditMode, roomId, editKeyParam]);
+
+  // Once both the room's questions and (in edit mode) the prior answers are
+  // loaded, seed the editable answers map for controlled inputs (choice
+  // questions and textareas need this; plain text inputs use defaultValue).
+  useEffect(() => {
+    if (questions.length === 0) return;
+    if (isEditMode && !initialData) return;
+    const seeded: Record<string, string> = {};
+    for (const q of questions) {
+      seeded[q.id] = initialData ? getAnswerValue(initialData, q) : '';
+    }
+    setAnswers(seeded);
+  }, [questions, initialData, isEditMode]);
 
   const buildLink = (editKey: string) => {
     const baseUrl = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -107,21 +146,19 @@ export default function FillPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+
+    const requiredMissing = questions.find((q) => q.required && !(answers[q.id] || '').trim());
+    if (requiredMissing) {
+      setError(`Заповни, будь ласка: "${requiredMissing.label}"`);
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const formData = new FormData(e.currentTarget);
-    const answers = {
-      name: (formData.get('name') as string).trim() || 'Анонім',
-      color: (formData.get('color') as string).trim(),
-      food: (formData.get('food') as string).trim(),
-      song: (formData.get('song') as string).trim(),
-      movie: (formData.get('movie') as string).trim(),
-      dream: (formData.get('dream') as string).trim(),
-      pet: petOption,
-      memory: (formData.get('memory') as string).trim(),
-      trait: (formData.get('trait') as string).trim(),
-      wish: (formData.get('wish') as string).trim(),
-    };
+    const cleanedAnswers: Record<string, string> = {};
+    for (const q of questions) {
+      cleanedAnswers[q.id] = (answers[q.id] || '').trim();
+    }
 
     try {
       // Both a fresh submission and an edit are a `create` — edits are stored
@@ -130,7 +167,7 @@ export default function FillPage() {
       // to the newest document for a given editKey.
       const editKey = isEditMode && editKeyParam ? editKeyParam : crypto.randomUUID();
       await addDoc(collection(db, 'rooms', roomId, 'responses'), {
-        ...answers,
+        answers: cleanedAnswers,
         ts: Date.now(),
         editKey,
       });
@@ -145,10 +182,20 @@ export default function FillPage() {
     }
   };
 
-  if (checkingEdit) {
+  if (loadingRoom || checkingEdit) {
     return (
       <NotebookLayout>
-        <p className="text-[17px] text-pencil">Завантажую твою відповідь...</p>
+        <p className="text-[17px] text-pencil">Завантажую{checkingEdit ? ' твою відповідь' : ' анкету'}...</p>
+      </NotebookLayout>
+    );
+  }
+
+  if (roomError) {
+    return (
+      <NotebookLayout>
+        <div className="text-center py-10 px-2 text-pink text-lg whitespace-pre-line">
+          {roomError}
+        </div>
       </NotebookLayout>
     );
   }
@@ -222,58 +269,60 @@ export default function FillPage() {
           {' '}замість нової.
         </div>
       )}
-      
+
       {error && (
         <div className="text-center p-4 text-pink text-lg mb-4 bg-pink/10 rounded-md">
           {error}
         </div>
       )}
-      
+
       <form onSubmit={handleSubmit} className="flex flex-col">
-        <QuestionLabel num="01" text="Як тебе звати?" />
-        <input type="text" name="name" required defaultValue={initialData?.name} className="dashed-input" data-testid="input-name" />
-        
-        <QuestionLabel num="02" text="Улюблений колір" />
-        <input type="text" name="color" defaultValue={initialData?.color} className="dashed-input" />
-        
-        <QuestionLabel num="03" text="Улюблена їжа" />
-        <input type="text" name="food" defaultValue={initialData?.food} className="dashed-input" />
-        
-        <QuestionLabel num="04" text="Улюблена пісня чи гурт" />
-        <input type="text" name="song" defaultValue={initialData?.song} className="dashed-input" />
-        
-        <QuestionLabel num="05" text="Улюблений фільм або мультик" />
-        <input type="text" name="movie" defaultValue={initialData?.movie} className="dashed-input" />
-        
-        <QuestionLabel num="06" text="Ким мріяв(-ла) стати в дитинстві?" />
-        <input type="text" name="dream" defaultValue={initialData?.dream} className="dashed-input" />
-        
-        <QuestionLabel num="07" text="Кіт чи собака?" />
-        <div className="flex gap-2.5 flex-wrap mt-1">
-          {['Кіт', 'Собака', 'Обидва'].map(opt => (
-            <button
-              key={opt}
-              type="button"
-              className={`sticker-btn ${petOption === opt ? 'selected' : ''}`}
-              onClick={() => setPetOption(opt)}
-            >
-              {opt === 'Кіт' ? '🐱 ' : opt === 'Собака' ? '🐶 ' : '🐾 '}
-              {opt}
-            </button>
-          ))}
-        </div>
-        
-        <QuestionLabel num="08" text="Найкращий спогад з дитинства" />
-        <textarea name="memory" rows={3} defaultValue={initialData?.memory} className="dashed-input"></textarea>
-        
-        <QuestionLabel num="09" text="Твоя найкраща риса характеру" />
-        <input type="text" name="trait" defaultValue={initialData?.trait} className="dashed-input" />
-        
-        <QuestionLabel num="10" text="Побажання для мене 💛" />
-        <textarea name="wish" rows={3} defaultValue={initialData?.wish} className="dashed-input"></textarea>
-        
-        <button 
-          type="submit" 
+        {questions.map((q, i) => {
+          const num = String(i + 1).padStart(2, '0');
+          const value = answers[q.id] ?? '';
+          return (
+            <div key={q.id}>
+              <QuestionLabel num={num} text={q.label} />
+              {q.type === 'text' && (
+                <input
+                  type="text"
+                  required={q.required}
+                  value={value}
+                  onChange={(e) => setAnswer(q.id, e.target.value)}
+                  className="dashed-input"
+                  data-testid={`input-question-${i}`}
+                />
+              )}
+              {q.type === 'textarea' && (
+                <textarea
+                  rows={3}
+                  required={q.required}
+                  value={value}
+                  onChange={(e) => setAnswer(q.id, e.target.value)}
+                  className="dashed-input"
+                  data-testid={`input-question-${i}`}
+                />
+              )}
+              {q.type === 'choice' && (
+                <div className="flex gap-2.5 flex-wrap mt-1" data-testid={`input-question-${i}`}>
+                  {(q.options || []).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      className={`sticker-btn ${value === opt ? 'selected' : ''}`}
+                      onClick={() => setAnswer(q.id, opt)}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <button
+          type="submit"
           disabled={isSubmitting}
           className="action-btn"
           data-testid="button-submit"
