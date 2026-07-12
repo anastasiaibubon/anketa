@@ -18,23 +18,7 @@ interface ResponseData {
   id: string;
   answers?: Record<string, string>;
   ts: number;
-  editKey?: string;
   [legacyField: string]: unknown;
-}
-
-// Firestore rules only allow creating responses, not updating them, so a
-// responder "editing" their answer actually creates a new document sharing
-// the same editKey. Keep only the newest document per editKey (or per doc
-// id, for older responses saved before editKey existed) so the creator only
-// ever sees each friend's latest version.
-function dedupeToLatest(entries: ResponseData[]): ResponseData[] {
-  const latestByKey = new Map<string, ResponseData>();
-  for (const entry of entries) {
-    const key = entry.editKey || entry.id;
-    const existing = latestByKey.get(key);
-    if (!existing || entry.ts > existing.ts) latestByKey.set(key, entry);
-  }
-  return Array.from(latestByKey.values());
 }
 
 export default function DashboardPage() {
@@ -107,9 +91,8 @@ export default function DashboardPage() {
       (snap) => {
         const entries: ResponseData[] = [];
         snap.forEach((d) => entries.push({ id: d.id, ...(d.data() as Omit<ResponseData, 'id'>) } as ResponseData));
-        const deduped = dedupeToLatest(entries);
-        deduped.sort((a, b) => b.ts - a.ts);
-        setResponsesByRoom((prev) => ({ ...prev, [expandedRoomId]: deduped }));
+        entries.sort((a, b) => b.ts - a.ts);
+        setResponsesByRoom((prev) => ({ ...prev, [expandedRoomId]: entries }));
         setResponsesLoading(false);
       },
       (err) => {
