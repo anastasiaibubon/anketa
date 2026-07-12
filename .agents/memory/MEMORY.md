@@ -2,3 +2,4 @@
 - [Anketa Firestore responses is create-only](anketa-firestore-create-only-responses.md) — `rooms/{roomId}/responses` allows create but denies update/delete; model "edits" as new docs sharing an editKey, dedupe to latest by ts.
 - [Anketa rooms doc access model](anketa-rooms-doc-readable.md) — `rooms/{roomId}` single-doc `get` is public (fill page needs it); `list`/`create` and `responses` reads require auth + ownerUid match.
 - [Testing Firebase email-link auth e2e](magic-link-e2e-testing.md) — use mailinator's public inbox API + Identity Toolkit REST to get a real ID token and verify auth-gated Firestore rules without a human clicking email.
+- [Anketa dashboard needs a Firestore composite index](anketa-firestore-composite-index.md) — rooms-by-owner query fails for everyone until a composite index (ownerUid+createdAt) is manually created; not in repo, not auto-provisioned.
