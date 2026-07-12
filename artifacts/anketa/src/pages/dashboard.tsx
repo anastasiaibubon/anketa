@@ -47,10 +47,16 @@ export default function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
+        // Ordered ascending to match the Firestore composite index that's
+        // actually provisioned for this collection (ownerUid + createdAt,
+        // both ascending) — Firestore treats a descending orderBy as a
+        // different index requirement and rejects it with FAILED_PRECONDITION
+        // if only the ascending one exists. Reversed below for newest-first
+        // display, so no additional index is needed.
         const q = query(
           collection(db, 'rooms'),
           where('ownerUid', '==', user.uid),
-          orderBy('createdAt', 'desc')
+          orderBy('createdAt', 'asc')
         );
         const snap = await getDocs(q);
         if (cancelled) return;
@@ -63,6 +69,7 @@ export default function DashboardPage() {
             questions: data.questions,
           });
         });
+        loaded.reverse();
         setRooms(loaded);
       } catch (err) {
         if (cancelled) return;
