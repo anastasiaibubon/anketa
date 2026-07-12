@@ -155,6 +155,37 @@ export default function LoginPage() {
           {error}
         </p>
       )}
+
+      <div
+        className="bg-white border-2 border-dashed border-pencil rounded-lg p-3.5 mt-6 text-[15px] leading-snug"
+        data-testid="section-how-it-works"
+      >
+        <h2 className="font-patrick text-[20px] m-0 mb-2 text-ink">Як працює анкета — коротко</h2>
+
+        <p className="font-bold m-0 mb-0.5">1. Створення анкети</p>
+        <p className="text-pencil m-0 mb-2.5">
+          Ти заходиш на сайт, вводиш пошту, тобі приходить лист із посиланням для входу — без пароля.
+          Переходиш по ньому і потрапляєш у свій кабінет. Там тиснеш «Створити анкету» — і отримуєш
+          посилання, яке можна відправити друзям.
+        </p>
+
+        <p className="font-bold m-0 mb-0.5">2. Заповнення другом</p>
+        <p className="text-pencil m-0 mb-2.5">
+          Друг переходить за твоїм посиланням, бачить тільки саму анкету (без чужих відповідей чи
+          інших даних), заповнює і тисне «Відправити». Йому не треба нікуди входити чи реєструватись.
+        </p>
+
+        <p className="font-bold m-0 mb-0.5">3. Перегляд відповідей</p>
+        <p className="text-pencil m-0 mb-2.5">
+          Заходиш у свій кабінет — бачиш список усіх своїх анкет, а в кожній — усі відповіді, які
+          прийшли від друзів. Ці відповіді бачиш тільки ти, більше ніхто.
+        </p>
+
+        <p className="font-space text-[12px] text-pencil m-0">
+          Дані зберігаються в базі даних, доступ має тільки розробник. Перевіряйте листи для входу в
+          папці Спам.
+        </p>
+      </div>
     </NotebookLayout>
   );
 }
