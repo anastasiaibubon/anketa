@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'wouter';
+import { useParams, Link } from 'wouter';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { NotebookLayout } from '@/components/layout/NotebookLayout';
@@ -103,6 +103,18 @@ export default function FillPage() {
         <div className="text-center py-10 px-2 animate-in zoom-in duration-500">
           <div className="font-caveat text-[40px] text-pink mb-4">Дякую! 🎉</div>
           <p className="text-lg mb-4">Твоя відповідь уже летить до того, хто скинув анкету.</p>
+          <div className="bg-white border-2 border-dashed border-pencil rounded-lg p-4 mt-6 text-center">
+            <p className="text-[15px] mb-3">
+              Сподобалось? Зроби свою анкету й дізнайся, що відповідять твої друзі! ✨
+            </p>
+            <Link
+              href="/login"
+              className="action-btn inline-block no-underline"
+              data-testid="link-login-cta"
+            >
+              Увійти й створити анкету
+            </Link>
+          </div>
         </div>
       </NotebookLayout>
     );
