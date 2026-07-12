@@ -38,7 +38,7 @@ export default function CreatedPage() {
       </div>
 
       <div className="bg-[#FFF3E0] border-l-4 border-yellow px-3.5 py-2.5 text-[15px] rounded my-4 leading-snug">
-        📬 Відповіді друзів завжди можна переглянути в кабінеті «Мої анкети» — увійди туди тим самим email.
+        📬 Відповіді друзів завжди можна переглянути в кабінеті «Мої анкети» — увійди туди через той самий Google-акаунт.
       </div>
 
       <button

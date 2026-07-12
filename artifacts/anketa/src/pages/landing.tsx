@@ -188,7 +188,7 @@ export default function LandingPage() {
 
       {user === null && (
         <p className="font-space text-[11px] text-pencil text-center mt-3" data-testid="text-login-required">
-          Щоб створити анкету, потрібно увійти через магічне посилання на пошту.
+          Щоб створити анкету, потрібно увійти через Google.
         </p>
       )}
 
